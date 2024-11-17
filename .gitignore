@@ -1,0 +1,8 @@
+
+.env
+pages_to_repost_from.txt
+*.txt
+Downloads*
+Adblocker*
+collected*
+cookies*
