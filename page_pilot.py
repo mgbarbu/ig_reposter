@@ -44,21 +44,31 @@ class Pilot:
         print("Clicking posts. Skipping first 3 posts (pinned posts)...")
         # Click post
         post_4 = self.driver.find_element(By.CLASS_NAME, "_aagw")
+        #scroll element into view. Had bugs without this on some pages.
+        self.driver.execute_script("arguments[0].scrollIntoView();", post_4)
         post_4.click()
         #buttons = self.driver.find_elements(By.CSS_SELECTOR,'.x1lliihq.x1n2onr6.xh8yej3.x4gyw5p.x1ntc13c.x9i3mqj.x11i5rnm.x2pgyrj')
         #buttons[0].click()
 
     def skip_pinned_posts(self):
-        # Skip first post
-        time.sleep(5)
-        nextbtn = self.driver.find_element(By.CLASS_NAME, "_abl-")
-        nextbtn.click()
-        # Skip second and third posts (usually pinned posts)
-        for _ in range(2):
-            time.sleep(5)
-            nextbtn = self.driver.find_elements(By.CLASS_NAME, "_abl-")
-            nextbtn[1].click()
-        print("Skipped first 3 pinned post")
+        # # Skip first post
+        # time.sleep(5)
+        # nextbtn = self.driver.find_element(By.CLASS_NAME, "_abl-")
+        # nextbtn.click()
+        # # Skip second and third posts (usually pinned posts)
+        # for _ in range(2):
+        #     time.sleep(5)
+        #     nextbtn = self.driver.find_elements(By.CLASS_NAME, "_abl-")
+        #     nextbtn[1].click()
+        # print("Skipped first 3 pinned post")
+
+        #Skip to 4th post.
+        print("Clicking 4th post. Skipping first 3 posts (pinned posts)...")
+        # Click post
+        post_4 = self.driver.find_elements(By.CLASS_NAME, "_aagw")[3]
+        #scroll element into view. Had bugs without this on some pages.
+        self.driver.execute_script("arguments[0].scrollIntoView();", post_4)
+        post_4.click()
 
     def get_caption(self):
         if self.page_name == "gym.mentality_":

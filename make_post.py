@@ -22,8 +22,8 @@ COOKIES_PATH = os.getenv("COOKIES_PATH")
 DOWNLOADS_PATH = os.path.join(FOLDER_PATH, "Downloads")
 MY_IG_USER = os.getenv("MY_IG_USER")
 #TIME_TO_POST = [9,13,17,19]
-TIME_TO_POST = [11,14,22,23]
-MINUTES_TO_SLEEP_FOR_UPLOAD = 3
+TIME_TO_POST = [11,14,21,23]
+MINUTES_TO_SLEEP_FOR_UPLOAD = 2
 POSTS_PER_DAY = len(TIME_TO_POST)
 
 class Make_Post:
@@ -55,6 +55,12 @@ class Make_Post:
         current_hour = int(current_time.strftime("%H"))
         print(f"current_hour: {current_hour}")
         posts_count = math.floor(self.posts_total_count/POSTS_PER_DAY)
+        #all NaN values rows in the 'download_path' column
+        nan_count = self.data['download_path'].isna().sum()
+        if posts_count > (self.posts_total_count - nan_count):
+            print(f"There are {self.posts_total_count} posts that can be made, but {nan_count} are missing download path.\nThis run should have made {posts_count} posts, but will not try to make {self.posts_total_count - nan_count}")
+            posts_count = nan_count
+
         #TODO only post if downloaded is not 0!
         print("Checking if current hour is matching posting hour in list")
         for index, hour in enumerate(TIME_TO_POST):
@@ -68,14 +74,32 @@ class Make_Post:
                 else:
                     print(f"Script will attempt to make {posts_count} posts this run. Posts remaining for next runs: {self.posts_total_count-posts_count}")
 
-                #get first n download_path and caption from csv file, where n is posts_count = the floor number of total posts/posts I want to make per day
-                paths = self.data["download_path"].head(posts_count).tolist()
-                caption_to_post = self.data["caption"].head(posts_count).tolist()
+                #process rows where 'download_path' is not NaN/empty.
+                filtered_data = self.data.head(posts_count).dropna(subset=["download_path"])
+                if len(filtered_data)<posts_count:
+                    must_reshuffle = 1
+                    print(f"{posts_count} posts should be made, but {posts_count-len(filtered_data)} are missing download path. Script will attempt to make {len(filtered_data)} posts this run")
+                else:
+                    must_reshuffle = 0
 
-                for index,path in enumerate(paths):
-                    file_path = os.path.join(DOWNLOADS_PATH, path)
-                    print(f"Post {index+1}/{len(paths)}")
-                    self.make_post(file_path,caption_to_post[index])
+                #Iterate over the filtered data
+                cur_count = 0
+                for index, row in filtered_data.iterrows():
+                    cur_count+=1
+                    file_path = os.path.join(DOWNLOADS_PATH, row['download_path'])
+                    print(f"Post {cur_count}/{len(filtered_data)}")
+                    successful_post = self.make_post(file_path, row['caption'])
+                    #If post was not made (because download file on disk couldn't be found), add the row to the bottom of the csv file and remove the downloaded info. So that it will be downloaded again next run
+                    if not successful_post:
+                        print("successful_post FALSE")
+                        new_row = row.copy()
+                        new_row['download_path'] = ""
+                        new_row['downloaded'] = 0
+                        #data = pandas.concat([self.data, pandas.DataFrame([new_row])], ignore_index=True)
+                        #data.to_csv(self.collected_posts, index=False)
+                        #self.data = pandas.read_csv(self.collected_posts)
+                        self.data = pandas.concat([self.data, pandas.DataFrame([new_row])], ignore_index=True)
+                        print("Row added at the end of the csv file, with an empty 'download_path' and 'downloaded' reset to 0.")
 
                 #Sleep for n minutes for uploads to complete
                 for i in range(MINUTES_TO_SLEEP_FOR_UPLOAD):
@@ -83,22 +107,28 @@ class Make_Post:
                     print(f"Don't close the terminal,csv file will be cleaned up and media will be removed from disk next.")
                     time.sleep(60)
 
-                # Repeat loop to remove the files on disk.(assuming the uploads finished!!)
-                for path in paths:
-                    file_path = os.path.join(DOWNLOADS_PATH, path)
-                    print("\nRemoving files on disk that have been uploaded: ")
+                #Repeat loop to remove the files on disk.(assuming the uploads finished!!)
+                for index, row in filtered_data.iterrows():
+                    file_path = os.path.join(DOWNLOADS_PATH, row['download_path'])
+                    print("\nRemoving file on disk that has been uploaded: ")
                     self.remove_file(file_path)
-
-
-                #Remove rows from csv file
-                print("\nRemoving rows from csv file with info about uploaded posts...")
-                data_modified = self.data.iloc[posts_count:]
-                data_modified.to_csv(self.collected_posts, index=False)
+                    # Remove rows from csv file
+                    print("Removing row from csv file with info about uploaded post...")
+                    data_modified = self.data.iloc[1:]
+                    data_modified.to_csv(self.collected_posts, index=False)
+                    self.data = pandas.read_csv(self.collected_posts)
+                    print(f"Row removed, {self.data.shape[0]} rows remaining.")
 
                 # Check if self.collected_posts (csv) has 0 rows. Delete both csv files if so
                 print("\nChecking csv files and counting rows remaining...")
                 self.remove_csv_files(self.collected_posts)
+                if must_reshuffle == 1:
+                    print("Shuffling csv file because of rows with no download path...")
+                    self.shuffle_csv()
                 self.driver.quit()
+            elif hour not in TIME_TO_POST:
+                print(f"Current hour {current_hour} not matching posting hour in list.")
+                break
 
     def make_post(self,file_path,caption):
         #open new tab and switch to it
@@ -120,39 +150,48 @@ class Make_Post:
         self.driver.find_element(By.XPATH,'//button[@class=" _acan _acap _acas _aj1- _ap30"]').click()
         time.sleep(1)
 
-        pyautogui.write(file_path, interval=0.0)
-        time.sleep(0.5)  # Adjust if needed
-        pyautogui.hotkey('enter')
-        time.sleep(2)
-        #May or may not show that "videos are reels now", in case it does show, this clicks OK
+        #Try finding the file on disk and posting.
         try:
-            self.driver.find_element(By.XPATH, '//button[@class=" _acan _acap _acaq _acas _acav _aj1- _ap30"]').click()
-            #self.driver.find_element(By.CLASS_NAME, "._acan._acap._acaq._acas._acav._aj1-._ap30").click()
+            pyautogui.write(file_path, interval=0.0)
+            time.sleep(0.5)  # Adjust if needed
+            pyautogui.hotkey('enter')
+            time.sleep(2)
+            #May or may not show that "videos are reels now", in case it does show, this clicks OK
+            try:
+                self.driver.find_element(By.XPATH, '//button[@class=" _acan _acap _acaq _acas _acav _aj1- _ap30"]').click()
+                #self.driver.find_element(By.CLASS_NAME, "._acan._acap._acaq._acas._acav._aj1-._ap30").click()
+            except:
+                pass
+            self.driver.find_element(By.CSS_SELECTOR, "[aria-label='Select crop']").click()
+            time.sleep(2)
+            #self.driver.find_element(By.XPATH, "//*[contains(text(), 'Original')]").click()
+            self.driver.find_element(By.CSS_SELECTOR, "[aria-label='Photo outline icon']").click()
+            time.sleep(1)
+            self.driver.find_element(By.CLASS_NAME, "_ac7b._ac7d").click()
+            time.sleep(1)
+            self.driver.find_element(By.CLASS_NAME, "_ac7b._ac7d").click()
+            time.sleep(1)
+            caption = emoji.emojize(caption)
+            #print(caption)
+            pyperclip.copy(caption)
+            #self.driver.find_element(By.CSS_SELECTOR, "[aria-label='Write a caption...']").send_keys(caption)
+            input_field = self.driver.find_element(By.CSS_SELECTOR, "[aria-label='Write a caption...']")
+            input_field.click()
+            ActionChains(self.driver).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+            time.sleep(1)
+            # Clear the clipboard
+            pyperclip.copy("")  # Set clipboard to empty string
+            self.driver.find_element(By.CLASS_NAME, "_ac7b._ac7d").click()
+            print(f"Making new post with caption: {caption}")
+            print("\n")
+            time.sleep(1)
+            return True
         except:
-            pass
-        self.driver.find_element(By.CSS_SELECTOR, "[aria-label='Select crop']").click()
-        time.sleep(2)
-        #self.driver.find_element(By.XPATH, "//*[contains(text(), 'Original')]").click()
-        self.driver.find_element(By.CSS_SELECTOR, "[aria-label='Photo outline icon']").click()
-        time.sleep(1)
-        self.driver.find_element(By.CLASS_NAME, "_ac7b._ac7d").click()
-        time.sleep(1)
-        self.driver.find_element(By.CLASS_NAME, "_ac7b._ac7d").click()
-        time.sleep(1)
-        caption = emoji.emojize(caption)
-        #print(caption)
-        pyperclip.copy(caption)
-        #self.driver.find_element(By.CSS_SELECTOR, "[aria-label='Write a caption...']").send_keys(caption)
-        input_field = self.driver.find_element(By.CSS_SELECTOR, "[aria-label='Write a caption...']")
-        input_field.click()
-        ActionChains(self.driver).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
-        time.sleep(1)
-        # Clear the clipboard
-        pyperclip.copy("")  # Set clipboard to empty string
-        self.driver.find_element(By.CLASS_NAME, "_ac7b._ac7d").click()
-        print(f"Making new post with caption: {caption}")
-        print("\n")
-        time.sleep(1)
+            pyautogui.hotkey('esc')
+            pyautogui.hotkey('esc')
+            print("File not found on disk. Skipping posting step.")
+            return False
+
 
 
     def remove_file(self,file_path):
@@ -178,3 +217,11 @@ class Make_Post:
                 print(f"{csv_file_path} still has rows (more clips to post); Not removing csv file on this run.")
         else:
             print("File does not exist.")
+
+    def shuffle_csv(self):
+        df = pandas.read_csv(self.collected_posts)
+        # Shuffle the DataFrame rows
+        df = df.sample(frac=1).reset_index(drop=True)
+        # Write the shuffled DataFrame back to a file
+        df.to_csv(self.collected_posts, index=False)
+        print(f"Shuffled file saved to {self.collected_posts}")
