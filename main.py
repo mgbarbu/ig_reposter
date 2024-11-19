@@ -31,7 +31,7 @@ def get_posts(ig_pages):
         pilot = Pilot(page)
         pilot.load_cookies()
         print("Cookies loaded successfully. Signed in.")
-        pilot.click_post()
+        #pilot.click_post()
         pilot.skip_pinned_posts()
         pilot.save_urls()
 
@@ -49,6 +49,12 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Only show errors
 
 
 #TODO
+#should i still move the nan empty download_path to end ain download_post?
+#mute sound when posting and then unmute? or mute chrome
+#instead of time.sleep() waitforelement or try: especially in download_post.py. could save a lot of time
+#Example of download path Snapinsta.app_video_264BB3DB2B50C1B0BC0C76D2B5E8C3AA_video_dashinit.mp4.crdownload REMOVE "crdownload" from string, it think it's temp download?
+#In make_post instead of reshuffle, add post to bottom
+#There is a chance when the post is downloaded, and the path is saved, that the post was not downloaded yet, and the last path saved is the one of the previous post? Should we still wait a few seconds or rather get all items in that folder after all downloads were made and sort chronologically? If it crashes, process would have to be restarted this way
 #There is a chance that last post was deleted? So it will keep going through all the posts. Make a limit in case of that? Or check the link first?? If still available run normally: https://www.instagram.com/p/DCRymJRMYM9/
 #After last post of the day, run get_posts and download post
 #What if I didn't get to post all the posts a day before. Adding more posts to csv will be fine, but I don't want to redownload everything... Create an exception for this in download_post

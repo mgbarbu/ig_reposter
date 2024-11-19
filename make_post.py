@@ -29,9 +29,11 @@ POSTS_PER_DAY = len(TIME_TO_POST)
 class Make_Post:
     def __init__(self):
         self.collected_posts = os.path.join(FOLDER_PATH, "collected_posts", "collected_posts.csv")
+        self.collected_posts2 = os.path.join(FOLDER_PATH, "collected_posts", "collected_posts2.csv")
         self.data = pandas.read_csv(self.collected_posts)
+        self.data2 = pandas.read_csv(self.collected_posts2)
         self.url = "https://www.instagram.com/"
-        self.posts_total_count = self.data.shape[0]
+        self.posts_total_count = self.data2.shape[0]
         print(f"Total posts on collected_posts.csv: {self.posts_total_count}")
 
         self.driver = webdriver.Chrome()
@@ -54,18 +56,23 @@ class Make_Post:
         current_time = datetime.now()
         current_hour = int(current_time.strftime("%H"))
         print(f"current_hour: {current_hour}")
-        posts_count = math.floor(self.posts_total_count/POSTS_PER_DAY)
-        #all NaN values rows in the 'download_path' column
-        nan_count = self.data['download_path'].isna().sum()
-        if posts_count > (self.posts_total_count - nan_count):
-            print(f"There are {self.posts_total_count} posts that can be made, but {nan_count} are missing download path.\nThis run should have made {posts_count} posts, but will not try to make {self.posts_total_count - nan_count}")
-            posts_count = nan_count
 
         #TODO only post if downloaded is not 0!
         print("Checking if current hour is matching posting hour in list")
         for index, hour in enumerate(TIME_TO_POST):
             if current_hour == hour:
                 print(f"Current hour {current_hour} is matching posting hour in list.")
+
+                # NUMBER OF POSTS TO BE MADE
+                posts_count = math.floor(self.posts_total_count / len(TIME_TO_POST))
+                # all NaN values rows in the 'download_path' column
+                nan_count = self.data['download_path'].isna().sum()
+                # TODO Test this is statement
+                if posts_count > (self.posts_total_count - nan_count):
+                    print(
+                        f"There are {self.posts_total_count} posts that can be made, but {nan_count} are missing download path.\nThis run should have made {posts_count} posts, but will not try to make {self.posts_total_count - nan_count}")
+                    posts_count = nan_count
+
                 if index == len(TIME_TO_POST)-1:
                     print("Last hour in the list. Posting everything left...")
                     print(f"Script will attempt to make {self.posts_total_count} posts this run.")
@@ -95,9 +102,6 @@ class Make_Post:
                         new_row = row.copy()
                         new_row['download_path'] = ""
                         new_row['downloaded'] = 0
-                        #data = pandas.concat([self.data, pandas.DataFrame([new_row])], ignore_index=True)
-                        #data.to_csv(self.collected_posts, index=False)
-                        #self.data = pandas.read_csv(self.collected_posts)
                         self.data = pandas.concat([self.data, pandas.DataFrame([new_row])], ignore_index=True)
                         print("Row added at the end of the csv file, with an empty 'download_path' and 'downloaded' reset to 0.")
 
@@ -121,7 +125,7 @@ class Make_Post:
 
                 # Check if self.collected_posts (csv) has 0 rows. Delete both csv files if so
                 print("\nChecking csv files and counting rows remaining...")
-                self.remove_csv_files(self.collected_posts)
+                self.remove_csv_files()
                 if must_reshuffle == 1:
                     print("Shuffling csv file because of rows with no download path...")
                     self.shuffle_csv()
@@ -206,15 +210,16 @@ class Make_Post:
         except Exception as e:
             print(f"An error occurred: {e}")
 
-    def remove_csv_files(self,csv_file_path):
+    def remove_csv_files(self):
         # Check if the file exists and has 0 rows
-        if os.path.exists(csv_file_path):
-            df = pandas.read_csv(csv_file_path)
+        if os.path.exists(self.collected_posts):
+            df = pandas.read_csv(self.collected_posts)
             if df.empty:
-                os.remove(csv_file_path)
-                print(f"{csv_file_path} is empty so file was removed successfully.")
+                os.remove(self.collected_posts)
+                os.remove(self.collected_posts2)
+                print(f"{self.collected_posts} is empty so file was removed successfully.")
             else:
-                print(f"{csv_file_path} still has rows (more clips to post); Not removing csv file on this run.")
+                print(f"{self.collected_posts} still has rows (more clips to post); Not removing csv file on this run.")
         else:
             print("File does not exist.")
 

@@ -21,7 +21,7 @@ DOWNLOADS_PATH = os.path.join(FOLDER_PATH, "Downloads")
 class Download_Post:
     def __init__(self):
         self.collected_posts = os.path.join(FOLDER_PATH, "collected_posts", "collected_posts.csv")
-
+        self.collected_posts2 = os.path.join(FOLDER_PATH, "collected_posts", "collected_posts2.csv")
         #Load adblocker extension
         chrome_options = Options()
         chrome_options.add_argument('load-extension=' + PATH_TO_EXTENSION)
@@ -54,6 +54,8 @@ class Download_Post:
                 print(f"Post in row {index} already downloaded. Skipping download step...")
             total_downloaded += 1
         print(f"Download run finished. {total_downloaded} files downloaded. Info about these are now in collected_posts.csv")
+        #copy dataframe to self.collected_posts2. if it's not on file, create the file
+        data.to_csv(self.collected_posts2, index=True, header=not os.path.exists(self.collected_posts2))
         time.sleep(3)
         self.driver.quit()
 
