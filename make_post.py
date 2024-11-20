@@ -75,11 +75,11 @@ class Make_Post:
 
                 if index == len(TIME_TO_POST)-1:
                     print("Last hour in the list. Posting everything left...")
-                    print(f"Script will attempt to make {self.posts_total_count} posts this run.")
+                    print(f"Script will attempt to make {posts_count} posts this run.\n")
                     rows = self.data.shape[0]
                     posts_count = rows
                 else:
-                    print(f"Script will attempt to make {posts_count} posts this run. Posts remaining for next runs: {self.posts_total_count-posts_count}")
+                    print(f"Script will attempt to make {posts_count} posts this run. Posts remaining for next runs: {self.posts_total_count-posts_count}\n")
 
                 #process rows where 'download_path' is not NaN/empty.
                 filtered_data = self.data.head(posts_count).dropna(subset=["download_path"])
@@ -103,7 +103,7 @@ class Make_Post:
                         new_row['download_path'] = ""
                         new_row['downloaded'] = 0
                         self.data = pandas.concat([self.data, pandas.DataFrame([new_row])], ignore_index=True)
-                        print("Row added at the end of the csv file, with an empty 'download_path' and 'downloaded' reset to 0.")
+                        print("Row added at the end of the csv file, with an empty 'download_path' and 'downloaded' reset to 0.\n")
 
                 #Sleep for n minutes for uploads to complete
                 for i in range(MINUTES_TO_SLEEP_FOR_UPLOAD):
