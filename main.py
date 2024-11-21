@@ -49,6 +49,13 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Only show errors
 
 
 #TODO
+#Post in row 22 was not downloaded. Downloading it...
+#Downloaded file: Snapinsta.app_467398041_3912144995722175_8844759426286239304_n_1080.jpg
+#C:\Users\Mihai\Documents\GitHub\ig_reposter\download_post.py:50: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value 'Snapinsta.app_467398041_3912144995722175_8844759426286239304_n_1080.jpg' has dtype incompatible with float64, please explicitly cast to a compatible dtype first.
+#  data.at[index, 'download_path'] = download
+#Iterating over row 3/19
+
+#rethink reshuffle logic
 #should i still move the nan empty download_path to end ain download_post?
 #mute sound when posting and then unmute? or mute chrome
 #instead of time.sleep() waitforelement or try: especially in download_post.py. could save a lot of time

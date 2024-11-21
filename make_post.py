@@ -79,7 +79,7 @@ class Make_Post:
                     rows = self.data.shape[0]
                     posts_count = rows
                 else:
-                    print(f"Script will attempt to make {posts_count} posts this run. Posts remaining for next runs: {self.posts_total_count-posts_count}\n")
+                    print(f"Script will attempt to make {posts_count} posts this run. Posts remaining for next runs: {self.posts_total_count-(posts_count*(TIME_TO_POST.index(current_hour)+1))}\n")
 
                 #process rows where 'download_path' is not NaN/empty.
                 filtered_data = self.data.head(posts_count).dropna(subset=["download_path"])
@@ -126,6 +126,7 @@ class Make_Post:
                 # Check if self.collected_posts (csv) has 0 rows. Delete both csv files if so
                 print("\nChecking csv files and counting rows remaining...")
                 self.remove_csv_files()
+                #TODO So we remove the files and then reshuffle? change this reshuffle with adding the one empty line to the end of csv file
                 if must_reshuffle == 1:
                     print("Shuffling csv file because of rows with no download path...")
                     self.shuffle_csv()
