@@ -22,7 +22,7 @@ COOKIES_PATH = os.getenv("COOKIES_PATH")
 DOWNLOADS_PATH = os.path.join(FOLDER_PATH, "Downloads")
 MY_IG_USER = os.getenv("MY_IG_USER")
 #TIME_TO_POST = [9,13,17,19]
-TIME_TO_POST = [11,14,21,23]
+TIME_TO_POST = [9,10,12,15,20,23,24]
 MINUTES_TO_SLEEP_FOR_UPLOAD = 2
 POSTS_PER_DAY = len(TIME_TO_POST)
 
@@ -74,10 +74,16 @@ class Make_Post:
                     posts_count = nan_count
 
                 if index == len(TIME_TO_POST)-1:
-                    print("Last hour in the list. Posting everything left...")
-                    print(f"Script will attempt to make {posts_count} posts this run.\n")
                     rows = self.data.shape[0]
                     posts_count = rows
+                    print("Last hour in the list. Posting everything left...")
+                    print(f"Script will attempt to make {posts_count} posts this run.\n")
+                    #Last run so delete collected_posts2
+                    if os.path.exists(self.collected_posts2):
+                        os.remove(self.collected_posts2)
+                        print(f"{self.collected_posts2} was removed successfully.")
+                    else:
+                        print(f"Tried to remove {self.collected_posts2} but file does not exist")
                 else:
                     print(f"Script will attempt to make {posts_count} posts this run. Posts remaining for next runs: {self.posts_total_count-(posts_count*(TIME_TO_POST.index(current_hour)+1))}\n")
 
@@ -125,7 +131,7 @@ class Make_Post:
 
                 # Check if self.collected_posts (csv) has 0 rows. Delete both csv files if so
                 print("\nChecking csv files and counting rows remaining...")
-                self.remove_csv_files()
+                self.remove_csv_files(self.collected_posts)
                 #TODO So we remove the files and then reshuffle? change this reshuffle with adding the one empty line to the end of csv file
                 if must_reshuffle == 1:
                     print("Shuffling csv file because of rows with no download path...")
@@ -211,18 +217,18 @@ class Make_Post:
         except Exception as e:
             print(f"An error occurred: {e}")
 
-    def remove_csv_files(self):
+    def remove_csv_files(self,posts_path):
         # Check if the file exists and has 0 rows
-        if os.path.exists(self.collected_posts):
-            df = pandas.read_csv(self.collected_posts)
+        if os.path.exists(posts_path):
+            df = pandas.read_csv(posts_path)
             if df.empty:
-                os.remove(self.collected_posts)
-                os.remove(self.collected_posts2)
-                print(f"{self.collected_posts} is empty so file was removed successfully.")
+                os.remove(posts_path)
+                print(f"{posts_path} is empty so file was removed successfully.")
             else:
-                print(f"{self.collected_posts} still has rows (more clips to post); Not removing csv file on this run.")
+                print(f"{posts_path} still has rows (more clips to post); Not removing csv file on this run.")
         else:
             print("File does not exist.")
+
 
     def shuffle_csv(self):
         df = pandas.read_csv(self.collected_posts)

@@ -79,6 +79,10 @@ class Pilot:
                 # TODO check this in multiple situations.using split in case it's an ig account in description page example: https://www.instagram.com/p/C8kSfwcSjOp/
                 caption = self.driver.find_element(By.XPATH, "//h1[@dir = 'auto']").get_attribute("innerHTML").split("<")[0]
                 print(f"Current caption is: {caption}")
+                if self.page_name == "gymmemesjokes":
+                    split_lines = caption.split("\n")
+                    caption = split_lines[0]
+                    print(f"Current IG page is gym.gymmemesjokes. Splitting caption to {caption}")
             except:
                 caption = "💪"
                 print("Empty caption. Saving caption as muscle emoji: 💪")

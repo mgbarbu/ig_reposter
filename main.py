@@ -44,8 +44,9 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Only show errors
 #get_posts(PAGES)
 #STEP2
 #download_post = Download_Post()
-#STEP3
-#make_post = Make_Post()
+#STEP 3
+make_post = Make_Post()
+
 
 
 #TODO
@@ -56,6 +57,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Only show errors
 #Iterating over row 3/19
 
 #rethink reshuffle logic
+#need to get date posted instead of last post in case post is deleted
+#what is pinned posts are deleted? then last post will be 2nd for example and it will be skipped to 4th and go on infinite
 #should i still move the nan empty download_path to end ain download_post?
 #mute sound when posting and then unmute? or mute chrome
 #instead of time.sleep() waitforelement or try: especially in download_post.py. could save a lot of time
@@ -68,3 +71,4 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Only show errors
 #Send me an email at the end of the day with the dictionary containing the url and caption (to double check if caption was taken correctly)
 #How to approach a post of 2 pictures and music? https://www.instagram.com/p/C7zFTGaoD6X/?img_index=1 It has img_index in url so look into that
 #What if the post was deleted? example: https://www.instagram.com/p/C9leWgvuzBk/ ?  and this could be the post saved as lastpost.txt
+#CHeck this post: 9,memeslibrary.official,https://www.instagram.com/p/DC5U2A1zvRJ/   it has a hastag as caption, but I think i removed the caption so there is no caption to be posted. this errors, at the post where I paster the caption a pop up windows appears asking if I want to discard my changes
