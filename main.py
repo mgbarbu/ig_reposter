@@ -56,13 +56,27 @@ make_post = Make_Post()
 #  data.at[index, 'download_path'] = download
 #Iterating over row 3/19
 
+#TODO NEW WITH INSTA LOADER
+#Music when page pilot? song for pictureS?
+#Skip pinned posts by datetime?
+
+#Wait until page says your reel has been shared? and then open new tab for new post?
+#What if download link is no longer valid? If file was missing from disk and it will be redownloaded but then the post was deleted? How will the download script react and should we clean the whole row?
+#What if last saved post has multiple posts: 24,gym.meme.nation,https://www.instagram.com/p/DG1BHgHRJPI/?img_index=1,Gym fixes everything :flexed_biceps:,8,"['gym.meme.nation_2025-03-05_18-52-34_1.jpg', 'gym.meme.nation_2025-03-05_18-52-34_2.jpg', 'gym.meme.nation_2025-03-05_18-52-34_3.jpg', 'gym.meme.nation_2025-03-05_18-52-34_4.jpg', 'gym.meme.nation_2025-03-05_18-52-34_5.jpg', 'gym.meme.nation_2025-03-05_18-52-34_6.jpg', 'gym.meme.nation_2025-03-05_18-52-34_7.jpg', 'gym.meme.nation_2025-03-05_18-52-34_8.jpg']"
+
+
+#"C:\Users\Mihai\Documents\GitHub\ig_reposter\Downloads\bigdfit_era_2025-03-03_12-58-34_1.mp4" "C:\Users\Mihai\Documents\GitHub\ig_reposter\Downloads\bigdfit_era_2025-03-03_12-58-34_2.mp4"
+#File not found on disk. Skipping posting step.
+#successful_post FALSE
+#Row added at the end of the csv file, with an empty 'download_path' and 'downloaded' reset to 0.
+#DACA CLIPURILE SUNT PREA LUNGI ZICE SUCCESSUL POST FALSE SI MAI DOWNLOADEAZA O DATA DATA VIITOARE> DISABLE THIS
+
 #rethink reshuffle logic
 #need to get date posted instead of last post in case post is deleted
 #what is pinned posts are deleted? then last post will be 2nd for example and it will be skipped to 4th and go on infinite
 #should i still move the nan empty download_path to end ain download_post?
 #mute sound when posting and then unmute? or mute chrome
 #instead of time.sleep() waitforelement or try: especially in download_post.py. could save a lot of time
-#Example of download path Snapinsta.app_video_264BB3DB2B50C1B0BC0C76D2B5E8C3AA_video_dashinit.mp4.crdownload REMOVE "crdownload" from string, it think it's temp download?
 #In make_post instead of reshuffle, add post to bottom
 #There is a chance when the post is downloaded, and the path is saved, that the post was not downloaded yet, and the last path saved is the one of the previous post? Should we still wait a few seconds or rather get all items in that folder after all downloads were made and sort chronologically? If it crashes, process would have to be restarted this way
 #There is a chance that last post was deleted? So it will keep going through all the posts. Make a limit in case of that? Or check the link first?? If still available run normally: https://www.instagram.com/p/DCRymJRMYM9/

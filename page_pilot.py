@@ -1,6 +1,7 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 import time
+from datetime import datetime
 import pickle
 import os
 import emoji
@@ -21,7 +22,7 @@ class Pilot:
         self.url = url
         print(f"Opening page: {self.url}")
         self.page_name = url.split("/")[-2]
-        print(f"Current IG page: {self.page_name}")
+        print(f"\n-----\nCurrent IG page: {self.page_name}")
         lastpost = self.page_name + "_lastpost.txt"
         self.lastposttxt = os.path.join(FOLDER_PATH, "igpages_lastpost" , lastpost)
         self.collected_posts = os.path.join(FOLDER_PATH, "collected_posts" , "collected_posts.csv")
@@ -68,6 +69,7 @@ class Pilot:
         post_4 = self.driver.find_elements(By.CLASS_NAME, "_aagw")[3]
         #scroll element into view. Had bugs without this on some pages.
         self.driver.execute_script("arguments[0].scrollIntoView();", post_4)
+        time.sleep(3)
         post_4.click()
 
     def get_caption(self):
@@ -90,6 +92,23 @@ class Pilot:
         caption = emoji.demojize(caption)
         return caption
 
+    def get_datetime(self):
+        """gets datetime in datetime.datetime format NOT str"""
+        time_element = self.driver.find_elements(By.TAG_NAME, 'time')
+        datetime_str = time_element[0].get_attribute('datetime')
+        #print(f"Time posted: {datetime_str}")
+        #Convert to datetime objects
+        datetimedt = datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%S.%fZ")
+        #print(f"Time posted: {datetimedt}")
+        return datetimedt
+
+    def datetime2str(self, datetime):
+        """converts datetime to str"""
+        return datetime.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    def str2datetime(self, datetime_str):
+        """converts str to datetime"""
+        return datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%S.%fZ")
 
     def save_urls(self):
         ###Read file from disk with the last link saved in the last run###
@@ -97,38 +116,46 @@ class Pilot:
         print(f"is_on_disk: {is_on_disk}")
         new_posts = 1
         if not is_on_disk:
-            print("There is no txt file on disk. This page could have been added to the list of IG pages recently. Saving forth post as last post for next run")
+            print("There is no txt file on disk. This page could have been added to the list of IG pages recently. Saving forth post datetime posted as last post's datetime for next run")
             get_url = self.driver.current_url
             print("The current URL is: " + str(get_url))
             caption = self.get_caption()
+            datetime = self.get_datetime()
             self.all_url.append(get_url)
             self.all_captions.append(caption)
             nextbtn = self.driver.find_elements(By.CLASS_NAME, "_abl-")
+            #TODO wait for button
+            time.sleep(2)
             nextbtn[1].click()
 
         else:
             print(f"Reading txt file: {self.lastposttxt}")
             file = open(self.lastposttxt, "r")
-            lastposturl = file.read()
-            print(f"Last URL saved in last run is: {lastposturl}")
+            lastpostdatetime = self.str2datetime(file.read())
+            print(f"Last URL saved in last run's DATETIME is: {lastpostdatetime}")
 
             ###Save URLs of new posts
             get_url = self.driver.current_url
-            if get_url == lastposturl:
+            datetime = self.get_datetime()
+            print(f"---\nChecking is new posts since last run")
+            if datetime <= lastpostdatetime:
                 print("No new posts since last run!")
                 new_posts = 0
             else:
-                print("Going through posts...")
+                print("New posts found. Going through posts...")
                 newpost = True
                 while newpost:
                     time.sleep(5)
                     get_url = self.driver.current_url
                     print("The current URL is: " + str(get_url))
                     caption = self.get_caption()
-                    if get_url == lastposturl:
+                    datetime = self.get_datetime()
+                    print(f"\nComparing current post datetime with lastpostdatetime\n{datetime}\nvs\n{lastpostdatetime}")
+                    if datetime <= lastpostdatetime:
                         newpost = False
-                        print("Current URL is matching the first url from last run.\nFinishing up on this page...")
+                        print("Current post datetime smaller or equal than lastpostdatetime. Finishing up on this page...")
                     else:
+                        print("Saving new post.\n")
                         self.all_url.append(get_url)
                         self.all_captions.append(caption)
                         nextbtn = self.driver.find_elements(By.CLASS_NAME, "_abl-")
@@ -161,10 +188,10 @@ class Pilot:
             else:
                 gathered_data_frame.to_csv(self.collected_posts)
 
-            print(f"Saving first URL link on disk: {self.all_url[0]}")
-            # Overwrite lastpost txt file with the first link gathered from above
+            print(f"Saving first URL link's datetime posted on disk: {datetime}")
+            # Overwrite lastpost txt file with the first link's datetime gathered from above
             with open(self.lastposttxt, "w") as file:
-                file.write(self.all_url[0])
+                file.write(self.datetime2str(datetime))
             time.sleep(1)
             self.driver.quit()
             time.sleep(1)

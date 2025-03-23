@@ -1,20 +1,15 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-import time
+import instaloader
 import os
+import glob
 import pandas
 from dotenv import load_dotenv
+
 
 #load .env file
 load_dotenv()
 PATH = os.getenv("PATH")
 #FOLDER_PATH is the path of the directory containing main.py
 FOLDER_PATH = os.path.dirname(os.path.abspath(__file__))
-#adblocker/ublock extension path
-PATH_TO_EXTENSION = os.path.join(FOLDER_PATH, "Adblocker", "cfhdojbkjhnklbpkdaibdccddilifddb", "1.59.0_11")
-#ig downloader website ("https://snapinsta.app/")
 DOWNLOADER = os.getenv("DOWNLOADER")
 DOWNLOADS_PATH = os.path.join(FOLDER_PATH, "Downloads")
 
@@ -22,15 +17,8 @@ class Download_Post:
     def __init__(self):
         self.collected_posts = os.path.join(FOLDER_PATH, "collected_posts", "collected_posts.csv")
         self.collected_posts2 = os.path.join(FOLDER_PATH, "collected_posts", "collected_posts2.csv")
-        #Load adblocker extension
-        chrome_options = Options()
-        chrome_options.add_argument('load-extension=' + PATH_TO_EXTENSION)
-        prefs = {"download.default_directory": DOWNLOADS_PATH}
-        chrome_options.add_experimental_option("prefs", prefs)
-        self.driver = webdriver.Chrome(options = chrome_options)
+        #self.shuffle_csv()
 
-        self.shuffle_csv()
-        #self.check_downloaded_column()
         data = pandas.read_csv(self.collected_posts, index_col = 0)
 
         # Check if 'download_path' column exists; if not, create it with empty values
@@ -40,24 +28,26 @@ class Download_Post:
         total_downloaded = 0
         num_rows = len(data)
         for index, row in data.iterrows():
-            print(f"Iterating over row {total_downloaded+1}/{num_rows}")
+            print(f"\nIterating over row {total_downloaded+1}/{num_rows}")
             if row['downloaded'] == 0:
                 print(f"Post in row {index} was not downloaded. Downloading it...")
-                self.download_post(row['url'])
-                download = self.get_last_download()
-                print(f"Downloaded file: {download}")
-                data.at[index, 'downloaded'] = 1
-                data.at[index, 'download_path'] = download
+                downloaded_files = self.download_post(row['url'])
+                if downloaded_files:
+                    print("Downloaded files:", downloaded_files)
+                else:
+                    print("No matching files found.")
+
+                #print(f"Downloaded file: {download}")
+                data.at[index, 'downloaded'] = len(downloaded_files)
+                data.at[index, 'download_path'] = downloaded_files
                 #Updateing csv every step in case of crash
                 data.to_csv(self.collected_posts, index=True)
             else:
                 print(f"Post in row {index} already downloaded. Skipping download step...")
             total_downloaded += 1
-        print(f"Download run finished. {total_downloaded} files downloaded. Info about these are now in collected_posts.csv")
+        print(f"\n-----\nDownload run finished. {total_downloaded} files downloaded. Info about these are now in collected_posts.csv")
         #copy dataframe to self.collected_posts2. if it's not on file, create the file
         data.to_csv(self.collected_posts2, index=True, header=not os.path.exists(self.collected_posts2))
-        time.sleep(3)
-        self.driver.quit()
 
     def shuffle_csv(self):
         df = pandas.read_csv(self.collected_posts)
@@ -74,35 +64,36 @@ class Download_Post:
         df.to_csv(self.collected_posts, index=False)
 
     def download_post(self, url):
-        self.driver.get(DOWNLOADER)
-        textbox = self.driver.find_element(By.NAME, "url")
-        textbox.click()
-        textbox.send_keys(url)
-        textbox.send_keys(Keys.RETURN)
-        time.sleep(10)
-        #TODO instead of sleep, wait for element
-        #try closing a pop-up from the download website("https://snapinsta.app/")
-        try:
-            self.driver.find_element(By.ID, 'close-modal').click()
-        except:
-            pass
-        time.sleep(10)
-        download = self.driver.find_element(By.CLASS_NAME, 'download-bottom')
-        download.click()
-        time.sleep(5)
+        #Split url = "https://www.instagram.com/p/DGHXRrTxXUa/" to get DGHXRrTxXUa
+        shortcodesplit = url.split("/")
+        post_shortcode = shortcodesplit[4]
+        print(f"URL: {url} and shortcode: {post_shortcode}")
 
-    #GET LAST DOWNLOAD FILE USING SELENIUM
-    def get_last_download(self):
-        most_recent_file = None
-        most_recent_time = 0
+        # Create an Instaloader instance
+        L = instaloader.Instaloader(
+            save_metadata=False,  # Skip metadata JSON
+            download_pictures=True,  # Skip downloading images
+            download_video_thumbnails=False,  # Skip video thumbnails
+            download_geotags=False,  # Skip geotags
+            post_metadata_txt_pattern=''  # Skip captions
+        )
 
-        # iterate over the files in the directory using os.scandir
-        for entry in os.scandir(DOWNLOADS_PATH):
-            if entry.is_file():
-                # get the modification time of the file using entry.stat().st_mtime_ns
-                mod_time = entry.stat().st_mtime_ns
-                if mod_time > most_recent_time:
-                    # update the most recent file and its modification time
-                    most_recent_file = entry.name
-                    most_recent_time = mod_time
-        return most_recent_file
+        # Set custom filename pattern
+        L.filename_pattern = "{profile}_{date_utc}"
+
+        # Custom download folder
+        custom_download_folder = "Downloads"
+
+        post = instaloader.Post.from_shortcode(L.context, post_shortcode)
+
+        # Download the post. There is a print statement within this method. Cannot mute it. it will print "Downloads\post"
+        L.download_post(post, target=custom_download_folder)
+
+        # Construct filename pattern based on profile and UTC date
+        filename_pattern = f"{post.owner_username}_{post.date_utc.strftime('%Y-%m-%d_%H-%M-%S')}*"
+
+        # Search for all matching files in the Downloads folder
+        matching_files = glob.glob(os.path.join(custom_download_folder, filename_pattern))
+
+        # Remove "Downloads/" from file paths
+        return [os.path.basename(f) for f in matching_files] if matching_files else None

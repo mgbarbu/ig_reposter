@@ -12,6 +12,9 @@ import pyautogui
 import os
 import pyperclip
 from dotenv import load_dotenv
+import ast
+import ffmpeg
+import pyperclip
 
 #load .env file
 load_dotenv()
@@ -22,7 +25,8 @@ COOKIES_PATH = os.getenv("COOKIES_PATH")
 DOWNLOADS_PATH = os.path.join(FOLDER_PATH, "Downloads")
 MY_IG_USER = os.getenv("MY_IG_USER")
 #TIME_TO_POST = [9,13,17,19]
-TIME_TO_POST = [9,10,12,15,20,23,24]
+#TIME_TO_POST = [9,10,12,19,20,21,22]
+TIME_TO_POST = [12,13,14,16]
 MINUTES_TO_SLEEP_FOR_UPLOAD = 2
 POSTS_PER_DAY = len(TIME_TO_POST)
 
@@ -67,7 +71,7 @@ class Make_Post:
                 posts_count = math.floor(self.posts_total_count / len(TIME_TO_POST))
                 # all NaN values rows in the 'download_path' column
                 nan_count = self.data['download_path'].isna().sum()
-                # TODO Test this is statement
+                #TODO Test this is statement
                 if posts_count > (self.posts_total_count - nan_count):
                     print(
                         f"There are {self.posts_total_count} posts that can be made, but {nan_count} are missing download path.\nThis run should have made {posts_count} posts, but will not try to make {self.posts_total_count - nan_count}")
@@ -99,17 +103,57 @@ class Make_Post:
                 cur_count = 0
                 for index, row in filtered_data.iterrows():
                     cur_count+=1
-                    file_path = os.path.join(DOWNLOADS_PATH, row['download_path'])
+                    #file_path = os.path.join(DOWNLOADS_PATH, row['download_path'])
+                    post_list = self.ensure_list(row['download_path'])
+                    paste_path = ""
+                    #TODO try to post long video, if not then crop video to 59 sec?
+                    for slide in post_list:
+                        #file_path = os.path.join(DOWNLOADS_PATH, slide)
+                        #if it's mp4 (video) and not jpg -> trim video if >=60 secs to 59 seconds.
+                        #if file_path[-1] == "4" :
+                        #    clip_duration = self.get_video_duration(file_path)
+                        #    if clip_duration >= 60:
+                        #        self.trim_video(file_path, clip_duration)
+
+                        paste_path += '"' + slide + '" '
                     print(f"Post {cur_count}/{len(filtered_data)}")
-                    successful_post = self.make_post(file_path, row['caption'])
+                    print(paste_path)
+                    successful_post = self.make_post(paste_path, row['caption'])
+
                     #If post was not made (because download file on disk couldn't be found), add the row to the bottom of the csv file and remove the downloaded info. So that it will be downloaded again next run
                     if not successful_post:
                         print("successful_post FALSE")
-                        new_row = row.copy()
-                        new_row['download_path'] = ""
-                        new_row['downloaded'] = 0
-                        self.data = pandas.concat([self.data, pandas.DataFrame([new_row])], ignore_index=True)
-                        print("Row added at the end of the csv file, with an empty 'download_path' and 'downloaded' reset to 0.\n")
+                        for slide in post_list:
+                            file_path = os.path.join(DOWNLOADS_PATH, slide)
+                            # if it's NOT mp4 (video) \skip trimming attempt.
+                            if file_path[-1] != "4":
+                                print("Post was not mp4. Skipping trim attempt")
+                            else:
+                                print("Attempting to trim videos to 59 seconds")
+                                #Try to trim videos to 59 seconds, assuming post was not successful because of video length
+                                try:
+                                    for slide in post_list:
+                                        file_path = os.path.join(DOWNLOADS_PATH, slide)
+                                        #if it's mp4 (video) and not jpg -> trim video if >=60 secs to 59 seconds.
+                                        if file_path[-1] == "4" :
+                                            clip_duration = self.get_video_duration(file_path)
+                                            if clip_duration >= 60:
+                                                self.trim_video(file_path, clip_duration)
+                                        #No need to redo paste_path. Use the one before, as trimming version will overwrite the one before
+                                        #paste_path += '"' + slide + '" '
+                                    print("Trim successful.")
+                                    print(f"Post {cur_count}/{len(filtered_data)}")
+                                    print(paste_path)
+                                    successful_post = self.make_post(paste_path, row['caption'])
+                                except:
+                                    print("Trimming failed. Post unsuccessful for another reason. Possible that file was not found on disk.")
+                                #If post still unsuccessful even after trim attempt
+                                if not successful_post:
+                                    new_row = row.copy()
+                                    new_row['download_path'] = ""
+                                    new_row['downloaded'] = 0
+                                    self.data = pandas.concat([self.data, pandas.DataFrame([new_row])], ignore_index=True)
+                                    print("Row added at the end of the csv file, with an empty 'download_path' and 'downloaded' reset to 0. Next download run will redownload the post.\n")
 
                 #Sleep for n minutes for uploads to complete
                 for i in range(MINUTES_TO_SLEEP_FOR_UPLOAD):
@@ -119,9 +163,9 @@ class Make_Post:
 
                 #Repeat loop to remove the files on disk.(assuming the uploads finished!!)
                 for index, row in filtered_data.iterrows():
-                    file_path = os.path.join(DOWNLOADS_PATH, row['download_path'])
+                    #file_path = os.path.join(DOWNLOADS_PATH, row['download_path'])
                     print("\nRemoving file on disk that has been uploaded: ")
-                    self.remove_file(file_path)
+                    self.remove_file(row['download_path'])
                     # Remove rows from csv file
                     print("Removing row from csv file with info about uploaded post...")
                     data_modified = self.data.iloc[1:]
@@ -140,6 +184,7 @@ class Make_Post:
             elif hour not in TIME_TO_POST:
                 print(f"Current hour {current_hour} not matching posting hour in list.")
                 break
+#TODO create a second methos make_posts to handle exception when there are more than I posts.
 
     def make_post(self,file_path,caption):
         #open new tab and switch to it
@@ -161,19 +206,54 @@ class Make_Post:
         self.driver.find_element(By.XPATH,'//button[@class=" _acan _acap _acas _aj1- _ap30"]').click()
         time.sleep(1)
 
+        #How many posts/slides are in this post?
+        slides = file_path.split()
+        slides_count = len(slides)
+        if slides_count > 1:
+            print(f"This post has {slides_count} slides")
+        else:
+            print(f"This post has {slides_count} slide")
         #Try finding the file on disk and posting.
         try:
-            pyautogui.write(file_path, interval=0.0)
+            #First go to folder C:\Users\Mihai\Documents\GitHub\ig_reposter\Downloads\
+            pyautogui.write(DOWNLOADS_PATH, interval=0.0)
             time.sleep(0.5)  # Adjust if needed
             pyautogui.hotkey('enter')
-            time.sleep(2)
+            time.sleep(1)
+
+            #loop through all slides/posts
+            for i in range(slides_count):
+                print(f"Slide {i+1}/{slides_count}")
+                pyautogui.write(slides[i], interval=0.0)
+                time.sleep(0.5)  # Adjust if needed
+                pyautogui.hotkey('enter')
+                time.sleep(2)
+                #if single post, break
+                if slides_count==1:
+                    break
+                else:
+                    #only open media gallery first time. It's kept open after
+                    if i == 0:
+                        element = self.driver.find_elements(By.CSS_SELECTOR, '[aria-label="Open media gallery"]')
+                        element[0].click()
+                    #skip last post because it was already posted?
+                    if i < slides_count-1:
+                        element = self.driver.find_elements(By.CSS_SELECTOR, '[aria-label="Plus icon"]')
+                        self.driver.execute_script("arguments[0].scrollIntoView();", element[0])
+                        element[0].click()
+                        time.sleep(1)
+                    else:
+                        break
+
             #May or may not show that "videos are reels now", in case it does show, this clicks OK
             try:
                 self.driver.find_element(By.XPATH, '//button[@class=" _acan _acap _acaq _acas _acav _aj1- _ap30"]').click()
                 #self.driver.find_element(By.CLASS_NAME, "._acan._acap._acaq._acas._acav._aj1-._ap30").click()
             except:
                 pass
-            self.driver.find_element(By.CSS_SELECTOR, "[aria-label='Select crop']").click()
+            button = self.driver.find_element(By.CSS_SELECTOR, "[aria-label='Select crop']")
+            self.driver.execute_script("arguments[0].scrollIntoView();", button)
+            button.click()
             time.sleep(2)
             #self.driver.find_element(By.XPATH, "//*[contains(text(), 'Original')]").click()
             self.driver.find_element(By.CSS_SELECTOR, "[aria-label='Photo outline icon']").click()
@@ -205,17 +285,20 @@ class Make_Post:
 
 
 
-    def remove_file(self,file_path):
+    def remove_file(self,file_name):
         # Remove the file on disk
-        try:
-            os.remove(file_path)
-            print(f"File {file_path} has been removed successfully.")
-        except FileNotFoundError:
-            print(f"File {file_path} does not exist.")
-        except PermissionError:
-            print(f"Permission denied: Cannot delete {file_path}.")
-        except Exception as e:
-            print(f"An error occurred: {e}")
+        file_name = self.ensure_list(file_name)
+        for slide in file_name:
+            file_path = os.path.join(DOWNLOADS_PATH, slide)
+            try:
+                os.remove(file_path)
+                print(f"File {file_path} has been removed successfully.")
+            except FileNotFoundError:
+                print(f"File {file_path} does not exist.")
+            except PermissionError:
+                print(f"Permission denied: Cannot delete {file_path}.")
+            except Exception as e:
+                print(f"An error occurred: {e}")
 
     def remove_csv_files(self,posts_path):
         # Check if the file exists and has 0 rows
@@ -237,3 +320,55 @@ class Make_Post:
         # Write the shuffled DataFrame back to a file
         df.to_csv(self.collected_posts, index=False)
         print(f"Shuffled file saved to {self.collected_posts}")
+
+    import ast
+
+    def ensure_list(self,value):
+        """Ensures value is a proper list, converting if needed."""
+        if isinstance(value, str):
+            # If it's a string that looks like a list, convert it
+            try:
+                parsed_value = ast.literal_eval(value)
+                if isinstance(parsed_value, list):  # Ensure it's a list
+                    return parsed_value
+            except (SyntaxError, ValueError):
+                pass
+            return [value]  # If conversion fails, wrap it in a list
+
+        return value if isinstance(value, list) else [value]  # Ensure it's always a list
+
+
+    def get_video_duration(self,video_path):
+        """Returns the duration of a video in seconds."""
+        try:
+            probe = ffmpeg.probe(video_path)
+            duration = float(probe['format']['duration'])
+            return duration
+        except Exception as e:
+            print(f"Error getting duration: {e}")
+            return None
+
+    def trim_video(self, input_path, duration, trim_duration=59):
+        """Trims the video in-place if it's 60 seconds or longer."""
+        if duration and duration >= 60:
+            temp_path = input_path + "_trimmed.mp4"  # Create a temp file
+            print(f"Trimming video to {trim_duration} seconds...")
+
+            # Trim and save as a temp file
+            try:
+                # Run the trimming command
+                ffmpeg.input(input_path).output(temp_path, t=trim_duration).run(overwrite_output=True)
+
+                # Wait for the temp file to be created
+                while not os.path.exists(temp_path):
+                    print("Waiting for video to be trimmed...")
+                    time.sleep(3)  # Check every 3 seconds for the temp file
+
+                # Once the temp file is created, replace the original file
+                os.replace(temp_path, input_path)
+                print(f"Trimmed video saved as: {input_path}")
+
+            except Exception as e:
+                print(f"Error trimming video: {e}")
+        else:
+            print("Video is already less than 60 seconds, no trimming needed.")
