@@ -115,12 +115,14 @@ class Pilot:
         is_on_disk = os.path.isfile(self.lastposttxt)
         print(f"is_on_disk: {is_on_disk}")
         new_posts = 1
+        datetime = self.get_datetime()
+        # Storing first post date time, to later output it in lastpost.txt
+        first_post_datetime = datetime
         if not is_on_disk:
             print("There is no txt file on disk. This page could have been added to the list of IG pages recently. Saving forth post datetime posted as last post's datetime for next run")
             get_url = self.driver.current_url
             print("The current URL is: " + str(get_url))
             caption = self.get_caption()
-            datetime = self.get_datetime()
             self.all_url.append(get_url)
             self.all_captions.append(caption)
             nextbtn = self.driver.find_elements(By.CLASS_NAME, "_abl-")
@@ -136,7 +138,6 @@ class Pilot:
 
             ###Save URLs of new posts
             get_url = self.driver.current_url
-            datetime = self.get_datetime()
             print(f"---\nChecking is new posts since last run")
             if datetime <= lastpostdatetime:
                 print("No new posts since last run!")
@@ -188,10 +189,10 @@ class Pilot:
             else:
                 gathered_data_frame.to_csv(self.collected_posts)
 
-            print(f"Saving first URL link's datetime posted on disk: {datetime}")
+            print(f"Saving first URL link's datetime posted on disk: {first_post_datetime}")
             # Overwrite lastpost txt file with the first link's datetime gathered from above
             with open(self.lastposttxt, "w") as file:
-                file.write(self.datetime2str(datetime))
+                file.write(self.datetime2str(first_post_datetime))
             time.sleep(1)
             self.driver.quit()
             time.sleep(1)

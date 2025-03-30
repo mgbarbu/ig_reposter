@@ -10,11 +10,11 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 import pyautogui
 import os
-import pyperclip
 from dotenv import load_dotenv
 import ast
 import ffmpeg
 import pyperclip
+import numpy as np
 
 #load .env file
 load_dotenv()
@@ -26,7 +26,9 @@ DOWNLOADS_PATH = os.path.join(FOLDER_PATH, "Downloads")
 MY_IG_USER = os.getenv("MY_IG_USER")
 #TIME_TO_POST = [9,13,17,19]
 #TIME_TO_POST = [9,10,12,19,20,21,22]
-TIME_TO_POST = [12,13,14,16]
+MIN_HOUR = 10
+MAX_HOUR = 21
+TIME_TO_POST = list(range(MAX_HOUR,MIN_HOUR-1,-1)) #hours from 21:00 to 10:00 reverse order
 MINUTES_TO_SLEEP_FOR_UPLOAD = 2
 POSTS_PER_DAY = len(TIME_TO_POST)
 
@@ -54,6 +56,28 @@ class Make_Post:
         print(f"Loaded cookies. Signed in as {MY_IG_USER}")
         time.sleep(5)
 
+    def distribute_posts(self):
+        num_slots = len(TIME_TO_POST)
+        num_posts = self.posts_total_count
+
+        schedule = {hour: 0 for hour in TIME_TO_POST}  # Initialize all slots with 0 posts
+
+        if num_posts <= num_slots:
+            times = np.linspace(21, 10, num_posts, dtype=int).tolist()
+            for hour in times:
+                schedule[hour] += 1
+        else:
+            base_posts = num_posts // num_slots  # Min posts per slot
+            extra_posts = num_posts % num_slots  # Leftover posts
+
+            for hour in TIME_TO_POST:
+                schedule[hour] = base_posts  # Assign base posts
+                if extra_posts > 0:
+                    schedule[hour] += 1  # Distribute extra posts
+                    extra_posts -= 1
+
+        return {k: v for k, v in schedule.items() if v > 0}  # Remove empty hours//is a dictionary comprehension that filters out hours with 0 posts.
+
 
     def post_by_hour(self):
         #I want the posting script to run 4 times a day, 9, 13, 17, 21. Total number of post gathered will be divided by 4.
@@ -61,130 +85,132 @@ class Make_Post:
         current_hour = int(current_time.strftime("%H"))
         print(f"current_hour: {current_hour}")
 
-        #TODO only post if downloaded is not 0!
-        print("Checking if current hour is matching posting hour in list")
-        for index, hour in enumerate(TIME_TO_POST):
-            if current_hour == hour:
-                print(f"Current hour {current_hour} is matching posting hour in list.")
+        # #TODO only post if downloaded is not 0!
+        # print("Checking if current hour is matching posting hour in list")
+        # for index, hour in enumerate(TIME_TO_POST):
+        #     if current_hour == hour:
+        #         print(f"Current hour {current_hour} is matching posting hour in list.")
+        #
+        #         # NUMBER OF POSTS TO BE MADE
+        #         posts_count = math.floor(self.posts_total_count / len(TIME_TO_POST))
+        #         # all NaN values rows in the 'download_path' column
+        #         nan_count = self.data['download_path'].isna().sum()
+        #         #TODO Test this is statement
+        #         if posts_count > (self.posts_total_count - nan_count):
+        #             print(
+        #                 f"There are {self.posts_total_count} posts that can be made, but {nan_count} are missing download path.\nThis run should have made {posts_count} posts, but will not try to make {self.posts_total_count - nan_count}")
+        #             posts_count = nan_count
+        #
+        #         if index == len(TIME_TO_POST)-1:
+        #             rows = self.data.shape[0]
+        #             posts_count = rows
+        #             print("Last hour in the list. Posting everything left...")
+        #             print(f"Script will attempt to make {posts_count} posts this run.\n")
+        #             #Last run so delete collected_posts2
+        #             if os.path.exists(self.collected_posts2):
+        #                 os.remove(self.collected_posts2)
+        #                 print(f"{self.collected_posts2} was removed successfully.")
+        #             else:
+        #                 print(f"Tried to remove {self.collected_posts2} but file does not exist")
+        #         else:
+        #             print(f"Script will attempt to make {posts_count} posts this run. Posts remaining for next runs: {self.posts_total_count-(posts_count*(TIME_TO_POST.index(current_hour)+1))}\n")
 
-                # NUMBER OF POSTS TO BE MADE
-                posts_count = math.floor(self.posts_total_count / len(TIME_TO_POST))
-                # all NaN values rows in the 'download_path' column
-                nan_count = self.data['download_path'].isna().sum()
-                #TODO Test this is statement
-                if posts_count > (self.posts_total_count - nan_count):
-                    print(
-                        f"There are {self.posts_total_count} posts that can be made, but {nan_count} are missing download path.\nThis run should have made {posts_count} posts, but will not try to make {self.posts_total_count - nan_count}")
-                    posts_count = nan_count
+        schedule = self.distribute_posts()
+        print("----------------------------")
+        print(schedule)
 
-                if index == len(TIME_TO_POST)-1:
-                    rows = self.data.shape[0]
-                    posts_count = rows
-                    print("Last hour in the list. Posting everything left...")
-                    print(f"Script will attempt to make {posts_count} posts this run.\n")
-                    #Last run so delete collected_posts2
-                    if os.path.exists(self.collected_posts2):
-                        os.remove(self.collected_posts2)
-                        print(f"{self.collected_posts2} was removed successfully.")
-                    else:
-                        print(f"Tried to remove {self.collected_posts2} but file does not exist")
-                else:
-                    print(f"Script will attempt to make {posts_count} posts this run. Posts remaining for next runs: {self.posts_total_count-(posts_count*(TIME_TO_POST.index(current_hour)+1))}\n")
+        if current_hour in schedule:
+            posts_count = schedule[current_hour]
 
-                #process rows where 'download_path' is not NaN/empty.
-                filtered_data = self.data.head(posts_count).dropna(subset=["download_path"])
-                if len(filtered_data)<posts_count:
-                    must_reshuffle = 1
-                    print(f"{posts_count} posts should be made, but {posts_count-len(filtered_data)} are missing download path. Script will attempt to make {len(filtered_data)} posts this run")
-                else:
-                    must_reshuffle = 0
+            filtered_data = self.data.head(posts_count).dropna(subset=["download_path"])
+            if len(filtered_data)<posts_count:
+                must_reshuffle = 1
+                print(f"{posts_count} posts should be made, but {posts_count-len(filtered_data)} are missing download path. Script will attempt to make {len(filtered_data)} posts this run")
+            else:
+                must_reshuffle = 0
 
-                #Iterate over the filtered data
-                cur_count = 0
-                for index, row in filtered_data.iterrows():
-                    cur_count+=1
-                    #file_path = os.path.join(DOWNLOADS_PATH, row['download_path'])
-                    post_list = self.ensure_list(row['download_path'])
-                    paste_path = ""
-                    #TODO try to post long video, if not then crop video to 59 sec?
+            #Iterate over the filtered data
+            cur_count = 0
+            for index, row in filtered_data.iterrows():
+                cur_count+=1
+                #file_path = os.path.join(DOWNLOADS_PATH, row['download_path'])
+                post_list = self.ensure_list(row['download_path'])
+                paste_path = ""
+                #TODO try to post long video, if not then crop video to 59 sec?
+                for slide in post_list:
+                    #file_path = os.path.join(DOWNLOADS_PATH, slide)
+                    #if it's mp4 (video) and not jpg -> trim video if >=60 secs to 59 seconds.
+                    #if file_path[-1] == "4" :
+                    #    clip_duration = self.get_video_duration(file_path)
+                    #    if clip_duration >= 60:
+                    #        self.trim_video(file_path, clip_duration)
+
+                    paste_path += '"' + slide + '" '
+                print(f"Post {cur_count}/{len(filtered_data)}")
+                print(paste_path)
+                successful_post = self.make_post(paste_path, row['caption'])
+
+                #If post was not made (because download file on disk couldn't be found), add the row to the bottom of the csv file and remove the downloaded info. So that it will be downloaded again next run
+                if not successful_post:
+                    print("successful_post FALSE")
                     for slide in post_list:
-                        #file_path = os.path.join(DOWNLOADS_PATH, slide)
-                        #if it's mp4 (video) and not jpg -> trim video if >=60 secs to 59 seconds.
-                        #if file_path[-1] == "4" :
-                        #    clip_duration = self.get_video_duration(file_path)
-                        #    if clip_duration >= 60:
-                        #        self.trim_video(file_path, clip_duration)
+                        file_path = os.path.join(DOWNLOADS_PATH, slide)
+                        # if it's NOT mp4 (video) \skip trimming attempt.
+                        if file_path[-1] != "4":
+                            print("Post was not mp4. Skipping trim attempt")
+                        else:
+                            print("Attempting to trim videos to 59 seconds")
+                            #Try to trim videos to 59 seconds, assuming post was not successful because of video length
+                            try:
+                                for slide in post_list:
+                                    file_path = os.path.join(DOWNLOADS_PATH, slide)
+                                    #if it's mp4 (video) and not jpg -> trim video if >=60 secs to 59 seconds.
+                                    if file_path[-1] == "4" :
+                                        clip_duration = self.get_video_duration(file_path)
+                                        if clip_duration >= 60:
+                                            self.trim_video(file_path, clip_duration)
+                                    #No need to redo paste_path. Use the one before, as trimming version will overwrite the one before
+                                    #paste_path += '"' + slide + '" '
+                                print("Trim successful.")
+                                print(f"Post {cur_count}/{len(filtered_data)}")
+                                print(paste_path)
+                                successful_post = self.make_post(paste_path, row['caption'])
+                            except:
+                                print("Trimming failed. Post unsuccessful for another reason. Possible that file was not found on disk.")
+                            #If post still unsuccessful even after trim attempt
+                            if not successful_post:
+                                new_row = row.copy()
+                                new_row['download_path'] = ""
+                                new_row['downloaded'] = 0
+                                self.data = pandas.concat([self.data, pandas.DataFrame([new_row])], ignore_index=True)
+                                print("Row added at the end of the csv file, with an empty 'download_path' and 'downloaded' reset to 0. Next download run will redownload the post.\n")
 
-                        paste_path += '"' + slide + '" '
-                    print(f"Post {cur_count}/{len(filtered_data)}")
-                    print(paste_path)
-                    successful_post = self.make_post(paste_path, row['caption'])
+            #Sleep for n minutes for uploads to complete
+            for i in range(MINUTES_TO_SLEEP_FOR_UPLOAD):
+                print(f"\nSleeping for {MINUTES_TO_SLEEP_FOR_UPLOAD-i} minutes for all uploads to complete...")
+                print(f"Don't close the terminal,csv file will be cleaned up and media will be removed from disk next.")
+                time.sleep(60)
 
-                    #If post was not made (because download file on disk couldn't be found), add the row to the bottom of the csv file and remove the downloaded info. So that it will be downloaded again next run
-                    if not successful_post:
-                        print("successful_post FALSE")
-                        for slide in post_list:
-                            file_path = os.path.join(DOWNLOADS_PATH, slide)
-                            # if it's NOT mp4 (video) \skip trimming attempt.
-                            if file_path[-1] != "4":
-                                print("Post was not mp4. Skipping trim attempt")
-                            else:
-                                print("Attempting to trim videos to 59 seconds")
-                                #Try to trim videos to 59 seconds, assuming post was not successful because of video length
-                                try:
-                                    for slide in post_list:
-                                        file_path = os.path.join(DOWNLOADS_PATH, slide)
-                                        #if it's mp4 (video) and not jpg -> trim video if >=60 secs to 59 seconds.
-                                        if file_path[-1] == "4" :
-                                            clip_duration = self.get_video_duration(file_path)
-                                            if clip_duration >= 60:
-                                                self.trim_video(file_path, clip_duration)
-                                        #No need to redo paste_path. Use the one before, as trimming version will overwrite the one before
-                                        #paste_path += '"' + slide + '" '
-                                    print("Trim successful.")
-                                    print(f"Post {cur_count}/{len(filtered_data)}")
-                                    print(paste_path)
-                                    successful_post = self.make_post(paste_path, row['caption'])
-                                except:
-                                    print("Trimming failed. Post unsuccessful for another reason. Possible that file was not found on disk.")
-                                #If post still unsuccessful even after trim attempt
-                                if not successful_post:
-                                    new_row = row.copy()
-                                    new_row['download_path'] = ""
-                                    new_row['downloaded'] = 0
-                                    self.data = pandas.concat([self.data, pandas.DataFrame([new_row])], ignore_index=True)
-                                    print("Row added at the end of the csv file, with an empty 'download_path' and 'downloaded' reset to 0. Next download run will redownload the post.\n")
+            #Repeat loop to remove the files on disk.(assuming the uploads finished!!)
+            for index, row in filtered_data.iterrows():
+                #file_path = os.path.join(DOWNLOADS_PATH, row['download_path'])
+                print("\nRemoving file on disk that has been uploaded: ")
+                self.remove_file(row['download_path'])
+                # Remove rows from csv file
+                print("Removing row from csv file with info about uploaded post...")
+                data_modified = self.data.iloc[1:]
+                data_modified.to_csv(self.collected_posts, index=False)
+                self.data = pandas.read_csv(self.collected_posts)
+                print(f"Row removed, {self.data.shape[0]} rows remaining.")
 
-                #Sleep for n minutes for uploads to complete
-                for i in range(MINUTES_TO_SLEEP_FOR_UPLOAD):
-                    print(f"\nSleeping for {MINUTES_TO_SLEEP_FOR_UPLOAD-i} minutes for all uploads to complete...")
-                    print(f"Don't close the terminal,csv file will be cleaned up and media will be removed from disk next.")
-                    time.sleep(60)
-
-                #Repeat loop to remove the files on disk.(assuming the uploads finished!!)
-                for index, row in filtered_data.iterrows():
-                    #file_path = os.path.join(DOWNLOADS_PATH, row['download_path'])
-                    print("\nRemoving file on disk that has been uploaded: ")
-                    self.remove_file(row['download_path'])
-                    # Remove rows from csv file
-                    print("Removing row from csv file with info about uploaded post...")
-                    data_modified = self.data.iloc[1:]
-                    data_modified.to_csv(self.collected_posts, index=False)
-                    self.data = pandas.read_csv(self.collected_posts)
-                    print(f"Row removed, {self.data.shape[0]} rows remaining.")
-
-                # Check if self.collected_posts (csv) has 0 rows. Delete both csv files if so
-                print("\nChecking csv files and counting rows remaining...")
-                self.remove_csv_files(self.collected_posts)
-                #TODO So we remove the files and then reshuffle? change this reshuffle with adding the one empty line to the end of csv file
-                if must_reshuffle == 1:
-                    print("Shuffling csv file because of rows with no download path...")
-                    self.shuffle_csv()
-                self.driver.quit()
-            elif hour not in TIME_TO_POST:
-                print(f"Current hour {current_hour} not matching posting hour in list.")
-                break
-#TODO create a second methos make_posts to handle exception when there are more than I posts.
+            # Check if self.collected_posts (csv) has 0 rows. Delete both csv files if so
+            print("\nChecking csv files and counting rows remaining...")
+            self.remove_csv_files(self.collected_posts)
+            #TODO So we remove the files and then reshuffle? change this reshuffle with adding the one empty line to the end of csv file
+            if must_reshuffle == 1:
+                print("Shuffling csv file because of rows with no download path...")
+                self.shuffle_csv()
+            self.driver.quit()
 
     def make_post(self,file_path,caption):
         #open new tab and switch to it
